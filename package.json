@@ -1,0 +1,21 @@
+{
+  "name": "dev-blog-contents",
+  "version": "1.0.0",
+  "description": "블로그 게시글 관리 및 자동 썸네일 생성 프로젝트",
+  "type": "module",
+  "scripts": {
+    "generate-thumbnails": "node scripts/generate-thumbnails.js"
+  },
+  "dependencies": {
+    "@resvg/resvg-js": "^2.6.2",
+    "gray-matter": "^4.0.3",
+    "satori": "^0.15.2"
+  },
+  "keywords": [
+    "blog",
+    "thumbnail",
+    "automation"
+  ],
+  "author": "",
+  "license": "MIT"
+}
