@@ -1,0 +1,269 @@
+---
+title: "2편: 블로그 SEO 적용과 사이트 성능 최적화"
+description: "블로그에 SEO를 적용하고 사이트 성능을 최적화한 과정을 정리한 글로, 메타데이터, 링크 미리보기, 사이트맵, JSON-LD, LightHouse 성능 점검과 최적화 경험을 다룹니다."
+publishedAt: "2025-08-23"
+updatedAt: "2025-08-23"
+tags: ["SEO", "성능 최적화"]
+thumbnail: "./thumbnail.webp"
+---
+
+### 왜 블로그에 SEO를 적용했을까?
+
+블로그를 개발자로서의 브랜딩과 포트폴리오 노출을 위해 만들었지만, 검색 결과에 노출되지 않으면 방문자가 제한적이라는 점을 깨달았습니다. 단순히 글을 작성하는 것만으로는 학습 과정과 프로젝트 경험을 충분히 전달하기 어렵고, 채용 담당자나 관심 있는 독자가 블로그를 발견하기도 쉽지 않습니다. 그래서 블로그를 더 잘 이해하고 평가할 수 있도록 SEO를 적용하기로 했습니다.
+
+### SEO 적용 과정
+
+#### 1. 기본 메타데이터 설정
+
+`gatsby-config.ts`에 `siteMetadata`를 정의하고, SEO 컴포넌트에서 GraphQL로 불러와 페이지별 기본 메타데이터를 적용했습니다. 페이지마다 적절한 제목과 설명이 표시되도록 구성했습니다.
+
+```ts
+// gatsby-config.ts
+const config: GatsbyConfig = {
+  siteMetadata: {
+    title: `your site title`,
+    siteUrl: `https://your-site-url.com`,
+    description: `your site description`,
+    language: `your site language`,
+  },
+
+  // ...기타 Gatsby 설정
+};
+```
+
+```tsx
+// Seo.tsx
+type SeoProps = {
+  type?: "WebSite" | "CollectionPage" | "BlogPosting" | "Person";
+  title?: string;
+  url?: string;
+  image?: string;
+  description?: string;
+  category?: string;
+  tags?: string[];
+  datePublished?: string;
+  dateModified?: string;
+};
+
+const Seo: React.FC<SeoProps> = ({
+  title,
+  url,
+  description,
+  image,
+  type = "WebSite",
+  tags,
+  category,
+  datePublished,
+  dateModified,
+}) => {
+  const data = useStaticQuery(graphql`
+    query SiteMetaData {
+      site {
+        siteMetadata {
+          title
+          siteUrl
+          language
+          description
+        }
+      }
+      // ... 추가 쿼리 필요 시 추가
+    }
+  `);
+
+  return (
+    <>
+      <title>{metaTitle}</title>
+      <meta name="description" content={metaDescription} />
+      <link rel="canonical" href={metaUrl} />
+
+      {/* ...추가 메타데이터 */}
+    </>
+  );
+};
+```
+
+#### 2. 링크 미리보기
+
+Open Graph와 Twitter Card 메타데이터를 추가해 링크 공유 시 제목, 설명, 이미지가 함께 표시되도록 했습니다. 이를 통해 블로그의 전문성과 신뢰도를 높였습니다.
+
+Open Graph 설정 예시는 다음과 같습니다:
+
+```jsx
+{/* Open Graph */}
+<meta property="og:type" content="website" />
+<meta property="og:title" content="your site title" />
+<meta property="og:description" content="your site description" />
+<meta property="og:url" content="your site url" />
+<meta property="og:image" content="your site image" />
+<meta property="og:site_name" content="your site title" />
+<meta property="og:locale" content="your site language" />
+
+{/* Twitter Card */}
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="your site title" />
+<meta name="twitter:description" content="your site description" />
+<meta name="twitter:image" content="your site image" />
+```
+
+#### 사이트맵과 Robots.txt
+
+`gatsby-plugin-sitemap`으로 사이트맵을 생성하고, 페이지별 중요도와 갱신 주기를 다르게 설정해 검색 엔진의 효율적 인덱싱을 유도했습니다`.
+
+```ts
+// gatsby-config.ts
+const config: GatsbyConfig = {
+  // ... siteMetaData
+  plugins: [
+    {
+      resolve: "gatsby-plugin-sitemap",
+      options: { ... },
+    },
+    {
+      resolve: "gatsby-plugin-robots-txt",
+      options: {
+        host: "https://your-site-url.com",
+        sitemap: "https://your-site-url.com/sitemap.xml",
+        policy: [{ userAgent: "*", allow: "/", disallow: [] }],
+      },
+    },
+    // ... 기타 플러그인
+  ],
+  // ... 기타 Gatsby 설정
+};
+```
+
+Robots.txt를 통해 검색 엔진에 접근 정책을 명확히 안내했고, 사이트맵 위치도 지정했습니다.
+
+#### JSON-LD 적용
+
+SEO 컴포넌트에 JSON-LD를 직접 작성하여 게시글마다 작성자, 발행일, 카테고리 정보를 구조화했습니다. 이를 통해 검색 엔진이 콘텐츠를 정확히 이해할 수 있도록 했습니다.
+
+```tsx
+// Seo.tsx
+const Seo: React.FC<SeoProps> = ({
+  title,
+  url,
+  description,
+  image,
+  type = "WebSite",
+  tags,
+  category,
+  datePublished,
+  dateModified,
+}) => {
+  const getJsonLd = (type: SeoProps["type"]) => {
+    const author = {
+      "@type": "Person",
+      name: "이성규",
+      alternateName: "BLUEGYU",
+      jobTitle: "백엔드 개발자",
+      description: "백엔드 개발과 인프라 운영에 관심이 있는 개발자",
+      sameAs: ["https://github.com/bluegyu", "https://dev.bluegyu.me"],
+    };
+
+    switch (type) {
+      // ... type에 따른 분리 로직
+
+      default:
+        return {
+          "@context": "https://schema.org",
+          "@type": type,
+          name: title,
+          description,
+          url,
+        };
+    }
+  };
+
+  return (
+    <>
+      {/* ... 기타 메타데이터 */}
+
+      {/* JSON-LD */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(getJsonLd(type)) }}
+      />
+    </>
+  );
+};
+```
+
+### 사이트 성능 검사 및 최적화 진행
+
+Google LightHouse를 활용해 사이트 성능을 점검했습니다. 검색 엔진은 성능 점수도 평가 요소라는 점을 확인했고, 이를 기반으로 Webpack 번들 최적화와 로컬 폰트 적용 등을 진행해 사용자 경험과 SEO 점수를 동시에 개선했습니다.
+
+#### webpack 번들 크기 최적화
+
+웹팩 설정을 조정하여 불필요한 코드 분리를 최소화하고, React 하이드레이션 과정의 일관성을 유지했습니다.
+
+```ts
+export const onCreateWebpackConfig: GatsbyNode["onCreateWebpackConfig"] = ({
+  stage,
+  actions,
+  getConfig,
+}) => {
+  const config = getConfig();
+
+  // 번들 크기 최적화
+  if (stage === "build-javascript") {
+    config.optimization.splitChunks = {
+      chunks: "all",
+      cacheGroups: {
+        vendor: {
+          test: /[\\/]node_modules[\\/]/,
+          name: "vendors",
+          chunks: "all",
+        },
+        common: {
+          name: "common",
+          minChunks: 2,
+          chunks: "all",
+          enforce: true,
+        },
+      },
+    };
+  }
+
+  // 압축 최적화
+  if (stage === "build-html" || stage === "develop-html") {
+    config.optimization.minimize = true;
+  }
+
+  actions.replaceWebpackConfig(config);
+};
+```
+
+#### 폰트 로딩 속도 최적화
+
+폰트 로딩 속도 개선을 위해 기존 fontsources에서 설치한 폰트 패키지를 제거하고 로컬 폰트로 설치하여 서비스하도록 설정했습니다.
+
+```css
+@font-face {
+  font-family: "BagelFatOne";
+  font-display: swap;
+  font-weight: 400;
+  font-style: normal;
+  font-named-instance: "Regular";
+  src: url("/fonts/BagelFatOne-Regular.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "NotoSansKR";
+  font-display: swap;
+  font-weight: 400;
+  font-style: normal;
+  font-named-instance: "Regular";
+  src: url("/fonts/NotoSansKR-Regular.ttf") format("truetype");
+}
+```
+
+![첫번째 SEO 검사 결과 이미지(Google Light House)](./1.webp "첫번째 SEO 검사 결과 (Google Lighthouse)")
+
+![두번째 SEO 검사 결과 이미지(Google Light House)](./2.webp "두번째 SEO 검사 결과 (Google Lighthouse)")
+
+캐시 최적화는 GitHub Pages의 기본 정책으로 인해 추가 설정이 어려웠습니다. 또한 최소한의 관리가 목표인 블로그에서 Cloudflare를 통한 캐시 관리는 목표에 맞지 않아 적용하지 않았습니다. 추후 블로그 배포 플랫폼을 변경하게 되면 그에 맞는 캐싱 최적화 설정을 추가할 예정입니다.
+
+### 정리하며
+
+이번 경험을 통해 SEO는 단순히 검색 순위를 올리는 기술이 아니라, 블로그를 “발견 가능한 사이트”로 만드는 과정이라는 점을 배웠습니다. 메타데이터와 링크 미리보기를 적용해 사이트의 기본 신뢰도를 확보하고, 사이트맵과 robots.txt를 통해 검색 엔진이 효율적으로 페이지를 인덱싱할 수 있도록 했습니다. LightHouse 검사와 최적화를 통해 성능과 사용자 경험을 개선했으며, JSON-LD 적용으로 검색 결과의 품질도 높였습니다. 아직 직접적인 트래픽 변화나 검색 노출 효과는 확인하지 못했지만, SEO 적용을 통해 블로그의 완성도를 한 단계 높일 수 있었습니다. 앞으로는 지표를 꾸준히 추적하며 SEO 효과를 객관적으로 확인해 나갈 계획입니다.
