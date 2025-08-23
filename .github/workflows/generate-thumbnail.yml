@@ -1,0 +1,116 @@
+name: Article Thumbnail Generator
+
+on:
+  push:
+    paths:
+      - "posts/**/*.mdx"
+      - "posts/**/*.md"
+
+jobs:
+  validate-markdown:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 전체 히스토리 가져오기
+          token: ${{ secrets.PERSONAL_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: |
+          npm install @actions/core gray-matter sharp @resvg/resvg-js
+
+      - name: Get changed markdown files
+        id: changed-files
+        run: |
+          # 이전 SHA가 없는 경우 fallback: HEAD~1
+          if git rev-parse ${{ github.event.before }} >/dev/null 2>&1; then
+            BASE_SHA=${{ github.event.before }}
+          else
+            BASE_SHA=HEAD~1
+          fi
+
+          # 변경된 파일 목록 가져오기 (추가/수정된 파일만, 삭제된 파일 제외)
+          CHANGED_FILES=$(git diff --name-only --diff-filter=AM $BASE_SHA ${{ github.sha }} || git diff --name-only --diff-filter=AM HEAD~1 HEAD)
+          CHANGED_FILES=$(echo "$CHANGED_FILES" | grep -E '\.(mdx|md)$' | grep '^posts/' || true)
+
+          echo "changed_files<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGED_FILES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          echo "Changed markdown files (excluding deleted files):"
+          echo "$CHANGED_FILES"
+
+      - name: Validate markdown files
+        if: steps.changed-files.outputs.changed_files != ''
+        run: |
+          node scripts/validate-markdown.mjs ${{ steps.changed-files.outputs.changed_files }}
+
+  generate-thumbnails:
+    runs-on: ubuntu-latest
+    needs: validate-markdown
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.PERSONAL_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: |
+          npm install gray-matter satori @resvg/resvg-js
+
+      - name: Get changed markdown files
+        id: changed-files
+        run: |
+          if git rev-parse ${{ github.event.before }} >/dev/null 2>&1; then
+            BASE_SHA=${{ github.event.before }}
+          else
+            BASE_SHA=HEAD~1
+          fi
+
+          # 변경된 파일 목록 가져오기 (추가/수정된 파일만)
+          CHANGED_FILES=$(git diff --name-only --diff-filter=AM $BASE_SHA ${{ github.sha }} || git diff --name-only --diff-filter=AM HEAD~1 HEAD)
+          CHANGED_FILES=$(echo "$CHANGED_FILES" | grep -E '\.(mdx|md)$' | grep '^posts/' || true)
+
+          # thumbnail.webp 존재 여부 확인 후 제외
+          FILES_TO_PROCESS=""
+          for file in $CHANGED_FILES; do
+            THUMBNAIL_PATH=$(dirname "$file")/thumbnail.webp
+            if [ ! -f "$THUMBNAIL_PATH" ]; then
+              FILES_TO_PROCESS="$FILES_TO_PROCESS $file"
+            fi
+          done
+
+          echo "changed_files<<EOF" >> $GITHUB_OUTPUT
+          echo "$FILES_TO_PROCESS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          echo "Markdown files to process (excluding deleted files):"
+          echo "$FILES_TO_PROCESS"
+
+      - name: Generate thumbnails
+        if: steps.changed-files.outputs.changed_files != ''
+        run: |
+          node scripts/generate-thumbnail.mjs ${{ steps.changed-files.outputs.changed_files }}
+
+      - name: Commit and push thumbnails
+        if: steps.changed-files.outputs.changed_files != ''
+        run: |
+          git config --local user.email "bluegyufordev@gmail.com"
+          git config --local user.name "blueGyu"
+          git add .
+          git commit -m "Auto-generate thumbnails for changed posts" || echo "No changes to commit"
+          git push
